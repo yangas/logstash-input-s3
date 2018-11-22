@@ -16,6 +16,7 @@ java_import java.io.FileInputStream
 java_import java.io.BufferedReader
 java_import java.util.zip.GZIPInputStream
 java_import java.util.zip.ZipException
+include_package org.anarres.lzo
 
 Aws.eager_autoload!
 # Stream events from files from a S3 bucket.
@@ -282,6 +283,8 @@ class LogStash::Inputs::S3 < LogStash::Inputs::Base
   def read_file(filename, &block)
     if gzip?(filename)
       read_gzip_file(filename, block)
+    elsif lzo?(filename)
+      read_lzo_file(filename, block)
     else
       read_plain_file(filename, block)
     end
@@ -318,6 +321,30 @@ class LogStash::Inputs::S3 < LogStash::Inputs::Base
     filename.end_with?('.gz','.gzip')
   end
   
+  private
+  def read_lzo_file(filename, block)
+    file_stream = FileInputStream.new(filename)
+    algorithm = LzoAlgorithm.LZO1X
+	  decompressor = LzoLibrary.getInstance().newDecompressor(algorithm, nil)
+    lzo_stream = new LzoInputStream(file_stream, decompressor)
+    decoder = InputStreamReader.new(lzo_stream, "UTF-8")
+    buffered = BufferedReader.new(decoder)
+
+    while (line = buffered.readLine())
+      block.call(line)
+    end
+  ensure
+    buffered.close unless buffered.nil?
+    decoder.close unless decoder.nil?
+    lzo_stream.close unless lzo_stream.nil?
+    file_stream.close unless file_stream.nil?
+  end
+
+  private
+  def lzo?(filename)
+    filename.end_with?('.lzo')
+  end
+
   private
   def sincedb 
     @sincedb ||= if @sincedb_path.nil?
