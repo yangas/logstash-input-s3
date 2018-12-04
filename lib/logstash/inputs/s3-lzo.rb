@@ -23,10 +23,10 @@ Aws.eager_autoload!
 #
 # Each line from each file generates an event.
 # Files ending in `.gz` are handled as gzip'ed files.
-class LogStash::Inputs::S3 < LogStash::Inputs::Base
+class LogStash::Inputs::S3-lzo < LogStash::Inputs::Base
   include LogStash::PluginMixins::AwsConfig::V2
 
-  config_name "s3"
+  config_name "s3-lzo"
 
   default :codec, "plain"
 
@@ -205,6 +205,7 @@ class LogStash::Inputs::S3 < LogStash::Inputs::Base
     # So all IO stuff: decompression, reading need to be done in the actual
     # input and send as bytes to the codecs.
     read_file(filename) do |line|
+      @logger.debug('Data decoded from file is', :data => line)
       if stop?
         @logger.warn("Logstash S3 input, stop reading in the middle of the file, we will read it again when logstash is started")
         return false
@@ -491,4 +492,4 @@ class LogStash::Inputs::S3 < LogStash::Inputs::Base
       end
     end
   end
-end # class LogStash::Inputs::S3
+end # class LogStash::Inputs::S3-lzo

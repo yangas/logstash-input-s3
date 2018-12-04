@@ -1,6 +1,6 @@
 # encoding: utf-8
 require "logstash/devutils/rspec/spec_helper"
-require "logstash/inputs/s3"
+require "logstash/inputs/s3-lzo"
 require "logstash/codecs/multiline"
 require "logstash/errors"
 require "aws-sdk-resources"
@@ -9,7 +9,7 @@ require "stud/temporary"
 require "aws-sdk"
 require "fileutils"
 
-describe LogStash::Inputs::S3 do
+describe LogStash::Inputs::S3-lzo do
   let(:temporary_directory) { Stud::Temporary.pathname }
   let(:sincedb_path) { Stud::Temporary.pathname }
   let(:day) { 3600 * 24 }
@@ -35,14 +35,14 @@ describe LogStash::Inputs::S3 do
     let(:config) { super.merge({ "interval" => 5 }) }
 
     before do
-      expect_any_instance_of(LogStash::Inputs::S3).to receive(:list_new_files).and_return(TestInfiniteS3Object.new)
+      expect_any_instance_of(LogStash::Inputs::S3-lzo).to receive(:list_new_files).and_return(TestInfiniteS3Object.new)
     end
 
     it_behaves_like "an interruptible input plugin"
   end
 
   describe "#register" do
-    subject { LogStash::Inputs::S3.new(config) }
+    subject { LogStash::Inputs::S3-lzo.new(config) }
 
     context "with temporary directory" do
       let(:temporary_directory) { Stud::Temporary.pathname }
@@ -54,7 +54,7 @@ describe LogStash::Inputs::S3 do
   end
 
   describe '#get_s3object' do
-    subject { LogStash::Inputs::S3.new(settings) }
+    subject { LogStash::Inputs::S3-lzo.new(settings) }
 
     context 'with modern access key options' do
       let(:settings) {
@@ -126,7 +126,7 @@ describe LogStash::Inputs::S3 do
     }
 
     it 'should allow user to exclude files from the s3 bucket' do
-      plugin = LogStash::Inputs::S3.new(config.merge({ "exclude_pattern" => "^exclude" }))
+      plugin = LogStash::Inputs::S3-lzo.new(config.merge({ "exclude_pattern" => "^exclude" }))
       plugin.register
 
       files = plugin.list_new_files
@@ -138,7 +138,7 @@ describe LogStash::Inputs::S3 do
     end
 
     it 'should support not providing a exclude pattern' do
-      plugin = LogStash::Inputs::S3.new(config)
+      plugin = LogStash::Inputs::S3-lzo.new(config)
       plugin.register
 
       files = plugin.list_new_files
@@ -158,7 +158,7 @@ describe LogStash::Inputs::S3 do
       }
 
       it 'should not log that no files were found in the bucket' do
-        plugin = LogStash::Inputs::S3.new(config.merge({ "exclude_pattern" => "^exclude" }))
+        plugin = LogStash::Inputs::S3-lzo.new(config.merge({ "exclude_pattern" => "^exclude" }))
         plugin.register
         allow(plugin.logger).to receive(:debug).with(anything, anything)
 
@@ -172,7 +172,7 @@ describe LogStash::Inputs::S3 do
       let(:objects_list) { [] }
 
       it 'should log that no files were found in the bucket' do
-        plugin = LogStash::Inputs::S3.new(config)
+        plugin = LogStash::Inputs::S3-lzo.new(config)
         plugin.register
         expect(plugin.logger).to receive(:info).with(/No files found/, anything)
         expect(plugin.list_new_files).to be_empty
@@ -188,7 +188,7 @@ describe LogStash::Inputs::S3 do
 
         allow_any_instance_of(Aws::S3::Bucket).to receive(:objects) { objects_list }
 
-        plugin = LogStash::Inputs::S3.new(config.merge({ 'backup_add_prefix' => 'mybackup',
+        plugin = LogStash::Inputs::S3-lzo.new(config.merge({ 'backup_add_prefix' => 'mybackup',
                                                          'backup_to_bucket' => config['bucket']}))
         plugin.register
 
@@ -200,10 +200,10 @@ describe LogStash::Inputs::S3 do
     end
 
     it 'should ignore files older than X' do
-      plugin = LogStash::Inputs::S3.new(config.merge({ 'backup_add_prefix' => 'exclude-this-file'}))
+      plugin = LogStash::Inputs::S3-lzo.new(config.merge({ 'backup_add_prefix' => 'exclude-this-file'}))
 
 
-      allow_any_instance_of(LogStash::Inputs::S3::SinceDB::File).to receive(:read).and_return(Time.now - day)
+      allow_any_instance_of(LogStash::Inputs::S3-lzo::SinceDB::File).to receive(:read).and_return(Time.now - day)
       plugin.register
 
       files = plugin.list_new_files
@@ -224,7 +224,7 @@ describe LogStash::Inputs::S3 do
 
         allow_any_instance_of(Aws::S3::Bucket).to receive(:objects).with(:prefix => prefix) { objects_list }
 
-        plugin = LogStash::Inputs::S3.new(config.merge({ 'prefix' => prefix }))
+        plugin = LogStash::Inputs::S3-lzo.new(config.merge({ 'prefix' => prefix }))
         plugin.register
         expect(plugin.list_new_files).to eq([present_object.key])
     end
@@ -239,14 +239,14 @@ describe LogStash::Inputs::S3 do
       allow_any_instance_of(Aws::S3::Bucket).to receive(:objects) { objects }
 
 
-      plugin = LogStash::Inputs::S3.new(config)
+      plugin = LogStash::Inputs::S3-lzo.new(config)
       plugin.register
       expect(plugin.list_new_files).to eq(['TWO_DAYS_AGO', 'YESTERDAY', 'TODAY'])
     end
 
     describe "when doing backup on the s3" do
       it 'should copy to another s3 bucket when keeping the original file' do
-        plugin = LogStash::Inputs::S3.new(config.merge({ "backup_to_bucket" => "mybackup"}))
+        plugin = LogStash::Inputs::S3-lzo.new(config.merge({ "backup_to_bucket" => "mybackup"}))
         plugin.register
 
         s3object = Aws::S3::Object.new('mybucket', 'testkey')
@@ -257,7 +257,7 @@ describe LogStash::Inputs::S3 do
       end
 
       it 'should copy to another s3 bucket when deleting the original file' do
-        plugin = LogStash::Inputs::S3.new(config.merge({ "backup_to_bucket" => "mybackup", "delete" => true }))
+        plugin = LogStash::Inputs::S3-lzo.new(config.merge({ "backup_to_bucket" => "mybackup", "delete" => true }))
         plugin.register
 
         s3object = Aws::S3::Object.new('mybucket', 'testkey')
@@ -268,7 +268,7 @@ describe LogStash::Inputs::S3 do
       end
 
       it 'should add the specified prefix to the backup file' do
-        plugin = LogStash::Inputs::S3.new(config.merge({ "backup_to_bucket" => "mybackup",
+        plugin = LogStash::Inputs::S3-lzo.new(config.merge({ "backup_to_bucket" => "mybackup",
                                                            "backup_add_prefix" => 'backup-' }))
         plugin.register
 
@@ -285,7 +285,7 @@ describe LogStash::Inputs::S3 do
         Stud::Temporary.file do |source_file|
           backup_file = File.join(backup_dir.to_s, Pathname.new(source_file.path).basename.to_s)
 
-          plugin = LogStash::Inputs::S3.new(config.merge({ "backup_to_dir" => backup_dir }))
+          plugin = LogStash::Inputs::S3-lzo.new(config.merge({ "backup_to_dir" => backup_dir }))
 
           plugin.backup_to_dir(source_file)
 
